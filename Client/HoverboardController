@@ -1,0 +1,40 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+
+local RemoteFunctions = ReplicatedStorage.RemoteFunctions
+
+local HoverboardController = {}
+
+HoverboardController.__index = HoverboardController
+
+function HoverboardController:CreateHoverboard()
+	local HoverboardModel = RemoteFunctions.CreateHoverboard:InvokeServer()
+	
+	return HoverboardModel
+end
+
+function HoverboardController:RetrieveData()
+	local Data = RemoteFunctions.RetrieveData:InvokeServer()
+	
+	return Data
+end
+
+function HoverboardController.new()
+	local self = setmetatable({
+	}, HoverboardController)
+	
+	local Data = self:RetrieveData()
+	local EquippedHoverboard = Data.EquippedHoverboard
+	
+	self.Model = self:CreateHoverboard()
+	
+	self.HoverboardStats = {
+		BoostMultiplier = EquippedHoverboard.BoostMultiplier,
+		BoostCapacity = EquippedHoverboard.BoostCapacity,
+		DefaultSpeed = 
+	}
+	
+	return self
+end
+
+return HoverboardController
