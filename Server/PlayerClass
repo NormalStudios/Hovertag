@@ -1,0 +1,35 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local PlayerClass = {}
+
+PlayerClass.__index = PlayerClass
+
+function PlayerClass:AddGold(Amount)
+	self.Gold = self.Gold + Amount
+	
+	return true
+end
+
+function PlayerClass:RemoveGold(Amount)
+	if self.Gold <= Amount then
+		return false
+	end
+
+	self.Gold = self.Gold - Amount
+	
+	return true
+end
+
+function PlayerClass.new(Player, self)
+	if self then return setmetatable(self, PlayerClass) end
+	
+	local self = setmetatable({}, PlayerClass)
+
+	self.Player = Player
+	self.Gold = 0
+	self.
+
+	return self
+end
+
+return PlayerClass
