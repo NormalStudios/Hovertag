@@ -1,0 +1,25 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Hoverboards = ReplicatedStorage:WaitForChild("Hoverboards")
+
+local Defaults = {
+	BoostMultiplier = 2,
+	BoostCapacity = 100,
+	BoostDepleteRate = 1,
+	BoostDepleteInterval = .01,
+	
+	Speed = 100,
+	
+}
+
+local HoverboardLibrary = {
+	["Classic"] = {
+		Name = "Classic",
+		Description = "Ol' reliable!",
+		Rarity = "Common",
+		Location = Hoverboards:WaitForChild("Classic"),
+		
+		BoostMultiplier = 2
+	}	
+}
+
+return HoverboardLibrary
