@@ -3,7 +3,7 @@ local Hoverboards = ReplicatedStorage:WaitForChild("Hoverboards")
 
 local Defaults = {
 	BoostMultiplier = 2,
-	BoostCapacity = 100,
+	BoostCapacity = 300,
 	BoostDepleteRate = 1,
 	BoostDepleteInterval = .01,
 	
@@ -18,7 +18,12 @@ local HoverboardLibrary = {
 		Rarity = "Common",
 		Location = Hoverboards:WaitForChild("Classic"),
 		
-		BoostMultiplier = 2
+		BoostMultiplier = Defaults.BoostMultiplier,
+		BoostCapacity = Defaults.BoostCapacity,
+		BoostDepleteRate = Defaults.BoostDepleteRate,
+		BoostDepleteInterval = Defaults.BoostDepleteInterval,
+
+		Speed = Defaults.Speed,
 	}	
 }
 
