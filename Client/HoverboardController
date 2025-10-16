@@ -1,5 +1,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 
 local RemoteFunctions = ReplicatedStorage.RemoteFunctions
 
@@ -14,25 +16,52 @@ function HoverboardController:CreateHoverboard()
 end
 
 function HoverboardController:RetrieveData()
-	local Data = RemoteFunctions.RetrieveData:InvokeServer()
+	local Data = RemoteFunctions.GetPlayerData:InvokeServer()
 	
 	return Data
 end
 
+function HoverboardController:Setup()
+	self.PlayerHumanoid.WalkSpeed = 0
+	self.PlayerHumanoid.JumpHeight = 0
+	self.PlayerHumanoid.AutoRotate = false
+	self.Seat:Sit(self.PlayerHumanoid)
+	
+end
+
+function HoverboardController:Physics()
+	RunService.PreRender:Connect(function(DeltaTime)
+		
+	end)
+end
+
 function HoverboardController.new()
 	local self = setmetatable({
+		Player = Players.LocalPlayer,
+		Character = Players.LocalPlayer.Character,
+		
 	}, HoverboardController)
+	
+	self.PlayerHumanoid = self.Character.Humanoid
+	
 	
 	local Data = self:RetrieveData()
 	local EquippedHoverboard = Data.EquippedHoverboard
 	
 	self.Model = self:CreateHoverboard()
+	self.Seat = self.Model:FindFirstChildOfClass("Seat")
 	
 	self.HoverboardStats = {
 		BoostMultiplier = EquippedHoverboard.BoostMultiplier,
 		BoostCapacity = EquippedHoverboard.BoostCapacity,
-		DefaultSpeed = 
+		BoostDepleteRate = EquippedHoverboard.BoostDepleteRate,
+		BoostDepleteInterval = EquippedHoverboard.BoostDepleteInterval,
+
+		Speed = EquippedHoverboard.Speed
 	}
+	
+	self:Setup()
+	self:Physics()
 	
 	return self
 end
