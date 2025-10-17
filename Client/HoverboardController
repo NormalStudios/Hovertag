@@ -29,9 +29,58 @@ function HoverboardController:Setup()
 	
 end
 
+function HoverboardController:Boost()
+	task.spawn(function()
+		while true do
+			if self.CurrentBoostCapacity > 0 then
+				self.CurrentBoostCapacity -= self.BoostDepleteRate
+			else
+				 
+				break
+			end
+			task.wait(self.BoostDepleteInterval)
+		end
+	end)
+end
+
 function HoverboardController:Physics()
 	RunService.PreRender:Connect(function(DeltaTime)
+		self.HoverboardHumanoidRootPart.AssemblyLinearVelocity = (Vector3.new(1,0,1) * self.PlayerHumanoid.MoveDirection) * Vector3.new(self.CurrentSpeed, 0, self.CurrentSpeed)
+	end)
+	
+	UserInputService.InputBegan:Connect(function(Input, GameProcessed)
+		if not GameProcessed then return warn("No game process") end
 		
+		if Input.KeyCode == Enum.KeyCode.ButtonB or Input.KeyCode == Enum.KeyCode.LeftShift or Input.KeyCode == Enum.KeyCode.LeftControl then
+			self:Boost()
+		end
+	end)
+	
+	UserInputService.JumpRequest:Connect(function()
+		self.HoverboardHumanoidRootPart.AssemblyLinearVelocity += Vector3.new(0, 10, 0)
+		
+		
+		if self.DoubleJumpConnection then self.DoubleJumpConnection:Disconnect() end
+		
+		self.DoubleJumpConnection = UserInputService.JumpRequest:Connect(function()
+			if self.CanDoubleJump then
+				self.HoverboardHumanoidRootPart.AssemblyLinearVelocity += Vector3.new(0, 10, 0)
+				self.CanDoubleJump = false
+			else
+				self.DoubleJumpConnection:Disconnect()
+			end
+		end)
+		
+		task.spawn(function()
+			while true do
+				if self.HoverboardHumanoid.FloorMaterial ~= Enum.Material.Air then 
+					self.DoubleJumpConnection:Disconnect()
+					self.CanDoubleJump = true
+				end
+				task.wait()
+			end
+			
+		end)
 	end)
 end
 
@@ -49,7 +98,14 @@ function HoverboardController.new()
 	local EquippedHoverboard = Data.EquippedHoverboard
 	
 	self.Model = self:CreateHoverboard()
+	self.HoverboardHumanoidRootPart = self.Model.HumanoidRootPart
+	self.HoverboardHumanoid = self.Model.Humanoid
 	self.Seat = self.Model:FindFirstChildOfClass("Seat")
+	
+	self.CanDoubleJump = true
+	self.DoubleJumpConnection = nil
+	self.Boosting = false
+	
 	
 	self.HoverboardStats = {
 		BoostMultiplier = EquippedHoverboard.BoostMultiplier,
@@ -59,6 +115,9 @@ function HoverboardController.new()
 
 		Speed = EquippedHoverboard.Speed
 	}
+	
+	self.CurrentSpeed = self.HoverboardStats.Speed
+	self.CurrentBoostCapacity = self.HoverboardStats.BoostCapacity
 	
 	self:Setup()
 	self:Physics()
