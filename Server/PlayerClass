@@ -27,6 +27,7 @@ function PlayerClass.new(Player, self)
 
 	self.Player = Player
 	self.Gold = 0
+	
 	self.
 
 	return self
