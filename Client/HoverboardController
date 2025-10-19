@@ -30,18 +30,9 @@ function HoverboardController:Setup()
 end
 
 function HoverboardController:Boost()
-	task.spawn(function()
-		while true do
-			if self.CurrentBoostCapacity > 0 then
-				self.CurrentBoostCapacity -= self.BoostDepleteRate
-			else
-				 
-				break
-			end
-			task.wait(self.BoostDepleteInterval)
-		end
-	end)
+	
 end
+
 
 function HoverboardController:Physics()
 	RunService.PreRender:Connect(function(DeltaTime)
@@ -56,32 +47,45 @@ function HoverboardController:Physics()
 		end
 	end)
 	
-	UserInputService.JumpRequest:Connect(function()
-		self.HoverboardHumanoidRootPart.AssemblyLinearVelocity += Vector3.new(0, 10, 0)
+	local function JumpRequest()
 		
-		
-		if self.DoubleJumpConnection then self.DoubleJumpConnection:Disconnect() end
-		
-		self.DoubleJumpConnection = UserInputService.JumpRequest:Connect(function()
-			if self.CanDoubleJump then
-				self.HoverboardHumanoidRootPart.AssemblyLinearVelocity += Vector3.new(0, 10, 0)
-				self.CanDoubleJump = false
-			else
-				self.DoubleJumpConnection:Disconnect()
-			end
-		end)
-		
-		task.spawn(function()
-			while true do
-				if self.HoverboardHumanoid.FloorMaterial ~= Enum.Material.Air then 
-					self.DoubleJumpConnection:Disconnect()
-					self.CanDoubleJump = true
+		for Index, Connection in pairs(self.Connections) do
+			Connection:Disconnect()
+		end
+		if self.HoverboardHumanoid.FloorMaterial ~= Enum.Material.Air then
+			self.CanDoubleJump = true
+
+		end
+		self.Connections[1] = UserInputService.JumpRequest:Connect(function()
+			self.HoverboardHumanoidRootPart.AssemblyLinearVelocity += Vector3.new(0, 10, 0)
+
+
+			if self.Connections[2] then self.Connections[2]:Disconnect() end
+
+			self.Connections[2] = UserInputService.JumpRequest:Connect(function()
+				if self.CanDoubleJump then
+					self.HoverboardHumanoidRootPart.AssemblyLinearVelocity += Vector3.new(0, 10, 0)
+					self.CanDoubleJump = false
+				else
+					self.Connections[2]:Disconnect()
 				end
-				task.wait()
-			end
-			
+			end)
+
+			task.spawn(function()
+				while true do
+					if self.HoverboardHumanoid.FloorMaterial ~= Enum.Material.Air then 
+						JumpRequest()
+						self.Connections[2]:Disconnect()
+						self.CanDoubleJump = true
+					end
+					task.wait()
+				end
+
+			end)
 		end)
-	end)
+	end
+	
+	JumpRequest()
 end
 
 function HoverboardController.new()
@@ -103,9 +107,11 @@ function HoverboardController.new()
 	self.Seat = self.Model:FindFirstChildOfClass("Seat")
 	
 	self.CanDoubleJump = true
-	self.DoubleJumpConnection = nil
+
 	self.Boosting = false
+	self.BoostRegenerateLoop = nil
 	
+	self.Connections = {}
 	
 	self.HoverboardStats = {
 		BoostMultiplier = EquippedHoverboard.BoostMultiplier,
