@@ -2,133 +2,233 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-
 local RemoteFunctions = ReplicatedStorage.RemoteFunctions
-
 local HoverboardController = {}
-
 HoverboardController.__index = HoverboardController
-
 function HoverboardController:CreateHoverboard()
 	local HoverboardModel = RemoteFunctions.CreateHoverboard:InvokeServer()
-	
+
 	return HoverboardModel
 end
-
 function HoverboardController:RetrieveData()
 	local Data = RemoteFunctions.GetPlayerData:InvokeServer()
-	
+
 	return Data
 end
-
 function HoverboardController:Setup()
+	print("Set")
 	self.PlayerHumanoid.WalkSpeed = 0
 	self.PlayerHumanoid.JumpHeight = 0
 	self.PlayerHumanoid.AutoRotate = false
 	self.Seat:Sit(self.PlayerHumanoid)
-	
-end
 
+end
 function HoverboardController:Boost()
-	
+	if self.BoostOnCooldown then return end
+	if self.CurrentBoostCapacity <= 0 then return end
+
+	self.Boosting = true
+
+	if self.BoostRegenerateLoop then
+		task.cancel(self.BoostRegenerateLoop)
+		self.BoostRegenerateLoop = nil
+	end
+
+	if self.BoostDepleteLoop then
+		task.cancel(self.BoostDepleteLoop)
+	end
+
+	self.BoostDepleteLoop = task.spawn(function()
+		while self.Boosting and self.CurrentBoostCapacity > 0 do
+			task.wait(self.HoverboardStats.BoostDepleteInterval)
+			self.CurrentBoostCapacity = math.max(0, self.CurrentBoostCapacity - self.HoverboardStats.BoostDepleteRate)
+
+			if self.CurrentBoostCapacity <= 0 then
+				self.Boosting = false
+				self:StartBoostCooldown()
+				break
+			end
+		end
+	end)
 end
 
+function HoverboardController:StopBoost()
+	if not self.Boosting then return end
+	if self.BoostOnCooldown then return end
+
+	self.Boosting = false
+
+	if self.BoostDepleteLoop then
+		task.cancel(self.BoostDepleteLoop)
+		self.BoostDepleteLoop = nil
+	end
+
+	self:StartBoostRegeneration()
+end
+
+function HoverboardController:StartBoostRegeneration()
+	if self.BoostRegenerateLoop then
+		task.cancel(self.BoostRegenerateLoop)
+	end
+
+	self.BoostRegenerateLoop = task.spawn(function()
+		while self.CurrentBoostCapacity < self.HoverboardStats.BoostCapacity do
+			task.wait(self.HoverboardStats.BoostRegenerateInterval)
+			self.CurrentBoostCapacity = math.min(self.HoverboardStats.BoostCapacity, self.CurrentBoostCapacity + self.HoverboardStats.BoostRegenerateRate)
+		end
+		self.BoostRegenerateLoop = nil
+	end)
+end
+
+function HoverboardController:StartBoostCooldown()
+	self.BoostOnCooldown = true
+
+	if self.BoostRegenerateLoop then
+		task.cancel(self.BoostRegenerateLoop)
+		self.BoostRegenerateLoop = nil
+	end
+
+	if self.BoostCooldownLoop then
+		task.cancel(self.BoostCooldownLoop)
+	end
+
+	self.BoostCooldownLoop = task.spawn(function()
+		while self.CurrentBoostCapacity < self.HoverboardStats.BoostCapacity do
+			task.wait(self.HoverboardStats.BoostRegenerateInterval)
+			self.CurrentBoostCapacity = math.min(self.HoverboardStats.BoostCapacity, self.CurrentBoostCapacity + self.HoverboardStats.BoostRegenerateRate)
+		end
+
+		self.BoostOnCooldown = false
+		self.BoostCooldownLoop = nil
+		self:StartBoostRegeneration()
+	end)
+end
 
 function HoverboardController:Physics()
+	local CurrentVelocity = Vector3.zero
+
 	RunService.PreRender:Connect(function(DeltaTime)
-		self.HoverboardHumanoidRootPart.AssemblyLinearVelocity = (Vector3.new(1,0,1) * self.PlayerHumanoid.MoveDirection) * Vector3.new(self.CurrentSpeed, 0, self.CurrentSpeed)
+		local TargetSpeed = self.Boosting and (self.HoverboardStats.Speed * self.HoverboardStats.BoostMultiplier) or self.HoverboardStats.Speed
+		self.CurrentSpeed = self.CurrentSpeed + (TargetSpeed - self.CurrentSpeed) * math.min(DeltaTime * 8, 1)
+
+		-- Smooth velocity changes
+		local TargetVelocity = (Vector3.new(1,0,1) * self.PlayerHumanoid.MoveDirection) * Vector3.new(self.CurrentSpeed, 0, self.CurrentSpeed)
+		CurrentVelocity = CurrentVelocity:Lerp(TargetVelocity, DeltaTime * 12)
+
+		self.HoverboardHumanoidRootPart.AssemblyLinearVelocity = CurrentVelocity
 	end)
-	
+
 	UserInputService.InputBegan:Connect(function(Input, GameProcessed)
-		if not GameProcessed then return warn("No game process") end
-		
+		if GameProcessed then return warn("No game process") end
+
 		if Input.KeyCode == Enum.KeyCode.ButtonB or Input.KeyCode == Enum.KeyCode.LeftShift or Input.KeyCode == Enum.KeyCode.LeftControl then
 			self:Boost()
 		end
 	end)
-	
+
+	UserInputService.InputEnded:Connect(function(Input, GameProcessed)
+		if GameProcessed then return warn("No game process") end
+
+		if Input.KeyCode == Enum.KeyCode.ButtonB or Input.KeyCode == Enum.KeyCode.LeftShift or Input.KeyCode == Enum.KeyCode.LeftControl then
+			self:StopBoost()
+		end
+	end)
+
 	local function JumpRequest()
-		
+		print("Jump system initialized")
+
 		for Index, Connection in pairs(self.Connections) do
 			Connection:Disconnect()
 		end
-		if self.HoverboardHumanoid.FloorMaterial ~= Enum.Material.Air then
-			self.CanDoubleJump = true
 
-		end
 		self.Connections[1] = UserInputService.JumpRequest:Connect(function()
-			self.HoverboardHumanoidRootPart.AssemblyLinearVelocity += Vector3.new(0, 10, 0)
+			print("First jump")
+			self.HoverboardHumanoidRootPart:ApplyImpulse(Vector3.new(0, self.HoverboardHumanoidRootPart.AssemblyMass * 25, 0))
 
 
-			if self.Connections[2] then self.Connections[2]:Disconnect() end
+			if self.Connections[2] then 
+				self.Connections[2]:Disconnect() 
+			end
+
+			if self.Connections[3] then
+				self.Connections[3]:Disconnect()
+			end
+
+			self.CanDoubleJump = false
 
 			self.Connections[2] = UserInputService.JumpRequest:Connect(function()
 				if self.CanDoubleJump then
-					self.HoverboardHumanoidRootPart.AssemblyLinearVelocity += Vector3.new(0, 10, 0)
+					print("Double jump")
+					self.HoverboardHumanoidRootPart:ApplyImpulse(Vector3.new(0, self.HoverboardHumanoidRootPart.AssemblyMass * 25, 0))
+
 					self.CanDoubleJump = false
-				else
-					self.Connections[2]:Disconnect()
+					if self.Connections[2] then
+						self.Connections[2]:Disconnect()
+					end
 				end
 			end)
 
-			task.spawn(function()
-				while true do
-					if self.HoverboardHumanoid.FloorMaterial ~= Enum.Material.Air then 
-						JumpRequest()
+			self.Connections[3] = RunService.Heartbeat:Connect(function()
+				if self.HoverboardHumanoid.FloorMaterial ~= Enum.Material.Air then
+					print("Landed - can double jump again")
+					self.CanDoubleJump = true
+					if self.Connections[2] then
 						self.Connections[2]:Disconnect()
-						self.CanDoubleJump = true
 					end
-					task.wait()
+					if self.Connections[3] then
+						self.Connections[3]:Disconnect()
+					end
 				end
-
 			end)
 		end)
 	end
-	
+
 	JumpRequest()
 end
-
 function HoverboardController.new()
 	local self = setmetatable({
 		Player = Players.LocalPlayer,
 		Character = Players.LocalPlayer.Character,
-		
+
 	}, HoverboardController)
-	
+
 	self.PlayerHumanoid = self.Character.Humanoid
-	
-	
+
+
 	local Data = self:RetrieveData()
 	local EquippedHoverboard = Data.EquippedHoverboard
-	
+
 	self.Model = self:CreateHoverboard()
 	self.HoverboardHumanoidRootPart = self.Model.HumanoidRootPart
 	self.HoverboardHumanoid = self.Model.Humanoid
 	self.Seat = self.Model:FindFirstChildOfClass("Seat")
-	
-	self.CanDoubleJump = true
 
+	self.CanDoubleJump = true
 	self.Boosting = false
+	self.BoostOnCooldown = false
 	self.BoostRegenerateLoop = nil
-	
+	self.BoostDepleteLoop = nil
+	self.BoostCooldownLoop = nil
+
 	self.Connections = {}
-	
+
 	self.HoverboardStats = {
 		BoostMultiplier = EquippedHoverboard.BoostMultiplier,
 		BoostCapacity = EquippedHoverboard.BoostCapacity,
 		BoostDepleteRate = EquippedHoverboard.BoostDepleteRate,
 		BoostDepleteInterval = EquippedHoverboard.BoostDepleteInterval,
-
+		BoostRegenerateRate = EquippedHoverboard.BoostRegenerateRate,
+		BoostRegenerateInterval = EquippedHoverboard.BoostRegenerateInterval,
 		Speed = EquippedHoverboard.Speed
 	}
-	
+
 	self.CurrentSpeed = self.HoverboardStats.Speed
 	self.CurrentBoostCapacity = self.HoverboardStats.BoostCapacity
-	
+
 	self:Setup()
 	self:Physics()
-	
+	self:StartBoostRegeneration()
+
 	return self
 end
-
 return HoverboardController
