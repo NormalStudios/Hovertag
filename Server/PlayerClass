@@ -1,4 +1,6 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local DataLibraries = ReplicatedStorage.Modules.Shared.DataLibraries
+local HoverboardLibrary = require(DataLibraries.HoverboardLibrary)
 
 local PlayerClass = {}
 
@@ -28,7 +30,7 @@ function PlayerClass.new(Player, self)
 	self.Player = Player
 	self.Gold = 0
 	
-	self.
+	self.EquippedHoverboard = HoverboardLibrary["Classic"]
 
 	return self
 end
