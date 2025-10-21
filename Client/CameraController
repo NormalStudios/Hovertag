@@ -1,0 +1,104 @@
+local CameraController = {}
+CameraController.__index = CameraController
+
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+
+function CameraController.new()
+	local self = setmetatable({}, CameraController)
+
+	self.Sensitivity = 0.003
+	self.MaxVerticalAngle = math.rad(80)
+	self.MinVerticalAngle = math.rad(-80)
+	self.CameraOffset = Vector3.new(2, 14, 9)
+	self.HorizontalAngle = 0
+	self.VerticalAngle = 0
+	self.Camera = workspace.CurrentCamera
+	self.Player = Players.LocalPlayer
+	self.Character = nil
+	self.HumanoidRootPart = nil
+	self.RaycastParams = RaycastParams.new()
+
+	self:Start()
+
+	return self
+end
+
+function CameraController:Start()
+	self.Camera.CameraType = Enum.CameraType.Scriptable
+
+	self:WaitForCharacter()
+	self:SetupRaycastParams()
+
+	UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+
+	UserInputService.InputChanged:Connect(function(input, processed)
+		if processed then return end
+		self:OnInputChanged(input)
+	end)
+
+	RunService.RenderStepped:Connect(function(dt)
+		self:UpdateCamera(dt)
+	end)
+end
+
+function CameraController:WaitForCharacter()
+	self.Character = self.Player.Character or self.Player.CharacterAdded:Wait()
+	self.HumanoidRootPart = self.Character:WaitForChild("HumanoidRootPart")
+
+	self.Player.CharacterAdded:Connect(function(char)
+		self.Character = char
+		self.HumanoidRootPart = char:WaitForChild("HumanoidRootPart")
+		self:SetupRaycastParams()
+	end)
+end
+
+function CameraController:SetupRaycastParams()
+	self.RaycastParams.FilterType = Enum.RaycastFilterType.Exclude
+	self.RaycastParams.FilterDescendantsInstances = {self.Character}
+	self.RaycastParams.IgnoreWater = true
+end
+
+function CameraController:OnInputChanged(input)
+	if input.UserInputType == Enum.UserInputType.MouseMovement then
+		local delta = input.Delta
+
+		self.HorizontalAngle = self.HorizontalAngle - delta.X * self.Sensitivity
+		self.VerticalAngle = self.VerticalAngle - delta.Y * self.Sensitivity
+
+		self.VerticalAngle = math.clamp(
+			self.VerticalAngle,
+			self.MinVerticalAngle,
+			self.MaxVerticalAngle
+		)
+	end
+end
+
+function CameraController:UpdateCamera(dt)
+	if not self.HumanoidRootPart then return end
+
+	local horizontalRotation = CFrame.Angles(0, self.HorizontalAngle, 0)
+	local verticalRotation = CFrame.Angles(self.VerticalAngle, 0, 0)
+
+	local rootPosition = self.HumanoidRootPart.Position
+	local cameraCFrame = CFrame.new(rootPosition) * horizontalRotation * verticalRotation
+
+	local offset = cameraCFrame:VectorToWorldSpace(self.CameraOffset)
+	local desiredPosition = rootPosition + offset
+
+	local direction = desiredPosition - rootPosition
+	local distance = direction.Magnitude
+
+	local raycastResult = workspace:Raycast(rootPosition, direction, self.RaycastParams)
+
+	if raycastResult then
+		local hitDistance = (raycastResult.Position - rootPosition).Magnitude
+		local safeDistance = math.max(hitDistance - 0.5, 0.5)
+		desiredPosition = rootPosition + direction.Unit * safeDistance
+	end
+
+	self.Camera.CFrame = CFrame.new(desiredPosition, rootPosition)
+end
+
+return CameraController
