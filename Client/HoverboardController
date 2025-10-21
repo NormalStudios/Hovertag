@@ -111,11 +111,28 @@ function HoverboardController:Physics()
 		local TargetSpeed = self.Boosting and (self.HoverboardStats.Speed * self.HoverboardStats.BoostMultiplier) or self.HoverboardStats.Speed
 		self.CurrentSpeed = self.CurrentSpeed + (TargetSpeed - self.CurrentSpeed) * math.min(DeltaTime * 8, 1)
 
-		-- Smooth velocity changes
 		local TargetVelocity = (Vector3.new(1,0,1) * self.PlayerHumanoid.MoveDirection) * Vector3.new(self.CurrentSpeed, 0, self.CurrentSpeed)
 		CurrentVelocity = CurrentVelocity:Lerp(TargetVelocity, DeltaTime * 12)
 
 		self.HoverboardHumanoidRootPart.AssemblyLinearVelocity = CurrentVelocity
+		self.HoverboardHumanoidRootPart.AssemblyAngularVelocity = Vector3.zero
+
+		-- Keep the hoverboard upright and facing movement direction
+		if CurrentVelocity.Magnitude > 0.1 then
+			local LookDirection = CurrentVelocity.Unit
+			local UpVector = Vector3.new(0, 1, 0)
+			local RightVector = LookDirection:Cross(UpVector).Unit
+			local AdjustedUp = RightVector:Cross(LookDirection).Unit
+
+			local TargetCFrame = CFrame.fromMatrix(self.HoverboardHumanoidRootPart.Position, RightVector, AdjustedUp, -LookDirection)
+			self.HoverboardHumanoidRootPart.CFrame = self.HoverboardHumanoidRootPart.CFrame:Lerp(TargetCFrame, DeltaTime * 8)
+		else
+			-- Keep upright when stationary
+			local CurrentPosition = self.HoverboardHumanoidRootPart.Position
+			local CurrentLook = self.HoverboardHumanoidRootPart.CFrame.LookVector
+			local TargetCFrame = CFrame.new(CurrentPosition, CurrentPosition + Vector3.new(CurrentLook.X, 0, CurrentLook.Z))
+			self.HoverboardHumanoidRootPart.CFrame = self.HoverboardHumanoidRootPart.CFrame:Lerp(TargetCFrame, DeltaTime * 8)
+		end
 	end)
 
 	UserInputService.InputBegan:Connect(function(Input, GameProcessed)
@@ -209,6 +226,8 @@ function HoverboardController.new()
 	self.BoostRegenerateLoop = nil
 	self.BoostDepleteLoop = nil
 	self.BoostCooldownLoop = nil
+	
+	self.Camera = require(script:WaitForChild("CameraController")).new()
 
 	self.Connections = {}
 
